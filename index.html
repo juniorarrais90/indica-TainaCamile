@@ -676,8 +676,9 @@
    Enquanto vazio, o formulário valida e mostra a confirmação, mas
    NÃO envia para lugar nenhum (modo demonstração).
 ================================================================== */
-const ENDPOINT = "https://script.google.com/macros/s/AKfycbw-UPCj0Sr5UIso4tRmfJiXBkFuZwnTxfMjUCqnwqBQw0XxaFRzgN7o57eoeqW7OHKI/exec";
-const TOKEN = "arrais-03cc6e176c87c29f"; // precisa ser IGUAL ao TOKEN do Apps Script
+const ENDPOINT = "https://painel-arrais.vercel.app/api/captacao/ficha"; // painel do escritório (desde 15/10/2026)
+const DOC_ENDPOINT = "https://painel-arrais.vercel.app/api/captacao/documento";
+const TOKEN = "arrais-03cc6e176c87c29f"; // identifica esta parceira no painel (captacao_parceiras.token_formulario)
 
 /* ---------- máscaras ---------- */
 const $ = s => document.querySelector(s);
@@ -861,7 +862,6 @@ $('#ficha').addEventListener('submit',async e=>{
     if(files.length){btn.textContent='Preparando documentos...';}
     const docs=[];
     for(const f of files){docs.push(await processarArquivo(f));}
-    payload.documentos=docs;
 
     btn.textContent='Enviando...';
     let resultado = await enviarFicha(payload);
@@ -874,6 +874,8 @@ $('#ficha').addEventListener('submit',async e=>{
       payload.forcar=true;
       resultado = await enviarFicha(payload);
     }
+    const falhas=await enviarDocumentos(resultado.protocolo || proto, docs, btn);
+    if(falhas.length) alert('A ficha foi registrada, mas estes documentos não subiram: '+falhas.join(', ')+'.\n\nMande-os pelo WhatsApp do escritório com o protocolo '+(resultado.protocolo || proto)+'.');
     finalizar(resultado.protocolo || proto, false);
   }catch(_){
     btn.disabled=false;btn.textContent='Enviar ficha';
@@ -882,7 +884,7 @@ $('#ficha').addEventListener('submit',async e=>{
 });
 
 // Portal da parceira: o link pessoal chega uma vez por ?portal=TOKEN e fica guardado neste aparelho.
-const PORTAL_BASE = "https://script.google.com/macros/s/AKfycby_owWyEdmHfhd_tDmXi_hDbDnQ5fzUNhgXgyo8sgIzffPdftbFXeD7wwCuqINE5Ao/exec?t=";
+const PORTAL_BASE = "https://painel-arrais.vercel.app/parceira/";
 function tokenPortal(){
   try{
     const t=new URLSearchParams(location.search).get('portal');
@@ -897,6 +899,20 @@ if(TOKEN_PORTAL){
   topo.querySelector('a').href=PORTAL_BASE+encodeURIComponent(TOKEN_PORTAL);
 }
 
+// Envia cada documento separado (o painel aceita até 3,5 MB por arquivo). Devolve os nomes que falharam.
+async function enviarDocumentos(protocolo, docs, btn){
+  const falhas=[];
+  for(let n=0;n<docs.length;n++){
+    btn.textContent='Enviando documento '+(n+1)+' de '+docs.length+'...';
+    try{
+      const r=await fetch(DOC_ENDPOINT,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({token:TOKEN,protocolo:protocolo,nome:docs[n].nome,type:docs[n].type,base64:docs[n].base64})});
+      const j=await r.json();
+      if(!j||j.ok!==true) falhas.push(docs[n].nome+(j&&j.erro?' ('+j.erro+')':''));
+    }catch(_){ falhas.push(docs[n].nome); }
+  }
+  return falhas;
+}
 async function enviarFicha(payload){
   const resposta=await fetch(ENDPOINT,{
     method:'POST',
