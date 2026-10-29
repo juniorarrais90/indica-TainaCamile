@@ -303,6 +303,10 @@
             </div>
           </div>
           <div class="field">
+            <label class="lbl" for="sm_filho">Nome do bebê (se já nasceu)</label>
+            <input type="text" id="sm_filho" name="sm_nome_filho" placeholder="Nome completo, como na certidão" style="text-transform:uppercase;">
+          </div>
+          <div class="field">
             <label class="lbl" for="sm_vinculo">Vínculo de trabalho</label>
             <select id="sm_vinculo" name="sm_vinculo">
               <option value="">Selecione</option>
@@ -516,12 +520,35 @@
           </div>
         </div>
         <div class="field">
-          <label class="lbl" for="estciv">Estado civil</label>
+          <label class="lbl">Sexo <span class="req">*</span></label>
+          <div class="opts">
+            <label class="opt"><input type="radio" name="cliente_sexo" value="feminino">Feminino</label>
+            <label class="opt"><input type="radio" name="cliente_sexo" value="masculino">Masculino</label>
+          </div>
+          <div class="errmsg" data-for="sexo">Informe o sexo (o contrato sai no gênero certo).</div>
+        </div>
+        <div class="field">
+          <label class="lbl" for="estciv">Estado civil <span class="req">*</span></label>
           <select id="estciv" name="cliente_estado_civil">
             <option value="">Selecione</option>
             <option>Solteiro(a)</option><option>Casado(a)</option><option>União estável</option>
             <option>Divorciado(a)</option><option>Viúvo(a)</option>
           </select>
+          <div class="errmsg" data-for="estciv">Informe o estado civil.</div>
+        </div>
+        <!-- Cliente menor de 18 anos: o responsável legal assina pelo cliente (aparece sozinho pela data de nascimento). -->
+        <div id="repBox" style="display:none;border:1px dashed var(--line);border-radius:10px;padding:12px;margin-bottom:15px;">
+          <div class="hint" style="margin-bottom:8px;">Cliente menor de 18 anos: informe o <b>responsável legal</b> (mãe, pai ou tutor), que assina os documentos junto.</div>
+          <div class="field">
+            <label class="lbl" for="rep_nome">Nome completo do responsável <span class="req">*</span></label>
+            <input type="text" id="rep_nome" name="rep_nome" placeholder="NOME COMPLETO" autocomplete="off" style="text-transform:uppercase;">
+            <div class="errmsg" data-for="rep_nome">Informe o nome do responsável.</div>
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label class="lbl" for="rep_cpf">CPF do responsável <span class="req">*</span></label>
+            <input type="tel" id="rep_cpf" name="rep_cpf" inputmode="numeric" placeholder="000.000.000-00" maxlength="14">
+            <div class="errmsg" data-for="rep_cpf">CPF do responsável inválido.</div>
+          </div>
         </div>
         <div class="field">
           <label class="lbl" for="contato">Telefone / WhatsApp <span class="req">*</span></label>
@@ -587,8 +614,9 @@
         </div>
         <div class="row2">
           <div class="field grow">
-            <label class="lbl" for="bairro">Bairro</label>
+            <label class="lbl" for="bairro">Bairro <span class="req">*</span></label>
             <input type="text" id="bairro" name="end_bairro" placeholder="Bairro">
+            <div class="errmsg" data-for="bairro">Informe o bairro.</div>
           </div>
           <div class="field shrink">
             <label class="lbl" for="uf">UF <span class="req">*</span></label>
@@ -598,12 +626,13 @@
         </div>
         <div class="row2">
           <div class="field grow">
-            <label class="lbl" for="rua">Rua / logradouro</label>
+            <label class="lbl" for="rua">Rua / logradouro <span class="req">*</span></label>
             <input type="text" id="rua" name="end_rua" placeholder="Rua, avenida...">
+            <div class="errmsg" data-for="rua">Informe a rua.</div>
           </div>
           <div class="field shrink">
             <label class="lbl" for="num">Número</label>
-            <input type="text" id="num" name="end_numero" placeholder="Nº">
+            <input type="text" id="num" name="end_numero" placeholder="Nº ou s/n">
           </div>
         </div>
         <div class="field">
@@ -713,7 +742,14 @@ $('#nasc').addEventListener('change',e=>{
   const m=hoje.getMonth()-d.getMonth();
   if(m<0||(m===0&&hoje.getDate()<d.getDate()))a--;
   $('#idade').value = a>=0 ? a+' anos' : '';
+  $('#repBox').style.display = a>=0 && a<18 ? 'block' : 'none';
 });
+function ehMenor(){ return $('#repBox').style.display==='block'; }
+$('#rep_cpf').addEventListener('input',e=>{let v=onlyNum(e.target.value).slice(0,11);v=v.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d{1,2})$/,'$1-$2');e.target.value=v;clearErr(e.target);});
+$('#rep_nome').addEventListener('input',e=>{e.target.value=e.target.value.toUpperCase();clearErr(e.target);});
+document.querySelectorAll('input[name="cliente_sexo"]').forEach(r=>r.addEventListener('change',()=>clearErrGroup('sexo')));
+['estciv','rua','bairro'].forEach(id=>$('#'+id).addEventListener('input',()=>clearErr($('#'+id))));
+$('#estciv').addEventListener('change',()=>clearErr($('#estciv')));
 
 /* ---------- CEP -> ViaCEP (preenche cidade/bairro/rua/uf) ---------- */
 $('#cep').addEventListener('blur',async e=>{
@@ -829,6 +865,15 @@ $('#ficha').addEventListener('submit',async e=>{
   });
   const cpfEl=$('#cpf');
   if(!validaCPF(cpfEl.value)){showErr(cpfEl);ok=false;}else clearErr(cpfEl);
+  // Dados que o contrato e a procuração pedem (29/10/2026): o escritório não precisa redigitar.
+  [['estciv'],['rua'],['bairro']].forEach(([id])=>{
+    const el=$('#'+id);if(!el.value.trim()){showErr(el);ok=false;}else clearErr(el);
+  });
+  if(!document.querySelector('input[name="cliente_sexo"]:checked')){document.querySelector('.errmsg[data-for="sexo"]').classList.add('show');ok=false;}
+  if(ehMenor()){
+    const rn=$('#rep_nome');if(rn.value.trim().length<5){showErr(rn);ok=false;}else clearErr(rn);
+    const rc=$('#rep_cpf');if(!validaCPF(rc.value)){showErr(rc);ok=false;}else clearErr(rc);
+  }
 
   const benef=[...document.querySelectorAll('input[name="beneficio"]:checked')].map(c=>c.value);
   if(benef.length===0){document.querySelector('.errmsg[data-for="beneficio"]').classList.add('show');ok=false;}
